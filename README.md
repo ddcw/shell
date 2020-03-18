@@ -1,7 +1,11 @@
-#使用说明：
+#CheckCommDDCW.sh使用说明：
 sh CheckCommDDCW.sh  [ any parameters ]
 
-生成rpm包
+ 
+
+
+#ddcw.spec使用说明
+#1.生成rpm包
 #rpmbuild -bb ddcw.spec
 
 安装rpm包
