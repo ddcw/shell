@@ -27,7 +27,7 @@ echo -e "\033[1;41;33m build NOTHING\033[0mprep"
 %post
 cat << EOF > /usr/bin/scanportV2DDCW
 dtbegin=\`date +%s\`
-if [ ! -z \$1 ] && [ \${port_o} -eq \${port_o} 2>/dev/null ] 
+if [ ! -z \$1 ] && [ \${1} -eq \${1} 2>/dev/null ] 
 then
 	export port_o=\$1
 else
