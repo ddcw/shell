@@ -25,7 +25,7 @@ echo -e "\033[1;41;33m build NOTHING\033[0mprep"
 
 
 %post
-cat << EOF > /usr/bin/scanportV2DDCW
+cat << EOF > /usr/bin/scanportDDCW
 dtbegin=\`date +%s\`
 if [ ! -z \$1 ] && [ \${1} -eq \${1} 2>/dev/null ] 
 then
@@ -96,7 +96,7 @@ fi
 dtend=\`date +\%s\`
 echo -e "this script cost time: \033[32;40m\`expr \${dtend} - \${dtbegin}\`\033[0m second"
 EOF
-chmod 777 /usr/bin/scanportV2DDCW
+chmod 777 /usr/bin/scanportDDCW
 
 
 cat << EOF > /usr/bin/CheckCommDDCW
