@@ -108,6 +108,8 @@ get_ssh_keygen dsa
 get_ssh_keygen rsa
 fi
 
+[ -f ~/.ssh${dt}/authorized_keys ] && cp ~/.ssh${dt}/authorized_keys ~/.ssh/authorized_keys
+
 
 ssh_rsa_pub=$(cat  ~/.ssh/id_rsa.pub | awk '{print $1 " " $2}')
 ssh_dsa_pub=$(cat  ~/.ssh/id_dsa.pub | awk '{print $1 " " $2}')
