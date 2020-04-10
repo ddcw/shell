@@ -1,6 +1,6 @@
 Name:		ddcw
 Version:	2020
-Release:	0318
+Release:	0410
 Summary:	this is set habbit for ddcw
 
 Group:		Applications/System
@@ -33,7 +33,6 @@ then
 else
 	export host_o=\$1
 fi
-
 if [ ! -z \$2 ]
 then
 	export port_o=\$2
@@ -46,16 +45,12 @@ then
 	export sleep_time=\$3
 fi
 [ -z \${sleep_time} ] && export sleep_time=0.2
-
-
 if ping -c 1 \${host_o} >/dev/null ;then
         echo -e "\${host_o} \tTCP PORT \tSTATUS"
 else
         echo -e "\033[31;40m\${host_o} net unreachable\033[0m"
         exit 1
 fi
-
-
 if [ -z \${port_o} ]
 then
 	for i in {1..65536}
@@ -84,13 +79,11 @@ then
 		else
 			echo -e "\${host_o}\t\033[31;40m\${port_o}\033[0m \t\t  is \033[31;40mNOT OPEN\033[0m"
                 fi
-
 	fi
 else
 	echo -e "\033[31;40m\${port_o} is NOT AVAILABLE PORT\033[0m"
 	exit 1
 fi
-
 fi
 	
 dtend=\`date +\%s\`
@@ -159,6 +152,117 @@ echo -e "\n\033[32;40m \`date +%Y%m%d-%H:%M:%S\` cost \${costm} minutes\033[0m"
 EOF
 chmod 777 /usr/bin/CheckCommDDCW
 
+cat << EF > /usr/bin/sshNopasswd
+#!/bin/env bash
+#write by ddcw at 20200410
+
+
+dt=\$(date +%Y%m%d-%H%M%S)
+
+function get_ssh_keygen() {
+	tpe=\$1
+        expect << EOF
+        set timeout 30
+        spawn  /usr/bin/ssh-keygen -t \${tpe}
+        expect {
+                        "sa):" {send "\r";exp_continue}
+                        "passphrase):" {send "\r";exp_continue}
+                        "again:" {send "\r"}
+        }
+        expect eof
+EOF
+}
+function scp_file_auto(){
+        [ \$# -eq 3 ] || echo_color red "script has internal err DDCW_0001"
+        password=\$3
+        dir_tmp=\$1
+        host_and_dir=\$2
+        expect << EOF
+        set timeout 30
+        spawn scp \${dir_tmp} \${host_and_dir}
+        expect {
+                        "(yes/no" {send "yes\r";exp_continue}
+                        "password:" {send "\${password}\r"}
+        }
+        expect eof
+EOF
+}
+function ssh_command(){
+#        [ \$# -eq 3 ] || echo_color red "script has internal err DDCW_0003"
+        user=`echo \$1 | awk -F "@" '{print \$1}'` ||  echo_color red "script has internal err DDCW_0004"
+        user_host=\$1
+        commd=\$2
+        password=\$3
+        expect << EOF
+        set timeout 30
+        spawn ssh \${user_host} \${commd}
+        expect {
+                        "(yes/no" {send "yes\r";exp_continue}
+                        "password:" {send "\${password}\r"}
+        }
+        expect "\${user}@*" {send "exit\r"}
+        expect eof
+EOF
+}
+
+
+function help_this_script() {
+	echo '---------------------------------------'
+	echo 'sshNopasswd [USER]@HOSTNAME [PASSWORD] '
+	echo "example: sshNopasswd \$(whoami)@\$(last | head -1 | awk '{print \$3}') "
+	echo '---------------------------------------'
+	exit 0
+}
+
+case \$1 in
+	-h|-H|h|H|help|HELP|-help|-HELP|--help|--HELP|help=y|HELP=Y|?|-?)
+		help_this_script;;
+esac
+	
+if [ ! -f ~/.ssh/id_rsa ]
+then
+mv ~/.ssh ~/.ssh\${dt}
+get_ssh_keygen rsa
+get_ssh_keygen dsa
+fi
+if [ ! -f ~/.ssh/id_rsa.pub ]
+then
+mv ~/.ssh ~/.ssh\${dt}
+get_ssh_keygen rsa
+get_ssh_keygen dsa
+fi
+
+if [ ! -f ~/.ssh/id_dsa ]
+then
+mv ~/.ssh ~/.ssh\${dt}
+get_ssh_keygen dsa
+get_ssh_keygen rsa
+fi
+if [ ! -f ~/.ssh/id_dsa.pub ]
+then
+mv ~/.ssh ~/.ssh\${dt}
+get_ssh_keygen dsa
+get_ssh_keygen rsa
+fi
+
+[ -f ~/.ssh\${dt}/authorized_keys ] && cp ~/.ssh\${dt}/authorized_keys ~/.ssh/authorized_keys
+
+
+ssh_rsa_pub=\$(cat  ~/.ssh/id_rsa.pub | awk '{print \$1 " " \$2}')
+ssh_dsa_pub=\$(cat  ~/.ssh/id_dsa.pub | awk '{print \$1 " " \$2}')
+
+[ -z \${2} ] && read -t 60 -p "please input \${1} password:" password
+[ -z \${2} ] || export password=\$2
+
+ssh_command \$1 'mkdir -p touch ~/.ssh' \${password}
+ssh_command \$1 '\[ -f ~/.ssh/authorized_keys \] || touch ~/.ssh/authorized_keys' \${password}
+ssh_command \$1 " grep '\${ssh_rsa_pub}' ~/.ssh/authorized_keys >/dev/null || echo '\${ssh_rsa_pub}' >> ~/.ssh/authorized_keys" \${password}
+ssh_command \$1 " grep '\${ssh_dsa_pub}' ~/.ssh/authorized_keys >/dev/null || echo '\${ssh_dsa_pub}' >> ~/.ssh/authorized_keys" \${passwd}
+EF
+
+chmod 777 /usr/bin/sshNopasswd
+
+
 grep -v '#' /etc/profile | grep "HISTTIMEFORMAT=" >/dev/null 2>&1 || echo '''export HISTTIMEFORMAT="FLAG_BFH_DDCWF FLAG_BFH_DDCWT "''' >> /etc/profile
 sed -i 's/FLAG_BFH_DDCW/%/g' /etc/profile
 grep -v '#' /etc/profile | grep "PS1=" >/dev/null 2>&1 || echo """export PS1='\t [\[\e[31;40m\]\u\[\e[0m\]@\h \[\e[36;40m\]\W\[\e[0m\]]\\$' """ >> /etc/profile
@@ -170,6 +274,7 @@ echo -e "you shuold run:\033[31;40msource /etc/profile\033[0m"
 rm -rf /usr/bin/scanportDDCW
 sed -i '/HISTTIMEFORMAT=/s/^/#/g' /etc/profile
 sed -i '/PS1=/s/^/#/g' /etc/profile
+rm -rf /usr/bin/sshNopasswd
+rm -rf /usr/bin/CheckCommDDCW
 
 %changelog
-
