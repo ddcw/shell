@@ -1,6 +1,6 @@
 Name:		ddcw
 Version:	2020
-Release:	0410
+Release:	0428
 Summary:	this is set habbit for ddcw
 
 Group:		Applications/System
@@ -26,6 +26,8 @@ echo -e "\033[1;41;33m build NOTHING\033[0mprep"
 
 %post
 cat << EOF > /usr/bin/scanportDDCW
+#!/bin/env bash
+#modified by ddcw at 20200428
 dtbegin=\`date +%s\`
 if [ ! -z \$1 ] && [ \${1} -eq \${1} 2>/dev/null ] 
 then
@@ -33,11 +35,22 @@ then
 else
 	export host_o=\$1
 fi
+
 if [ ! -z \$2 ]
 then
 	export port_o=\$2
 	export host_o=\$1
 fi
+
+if [ \${1} -eq \${1} 2>/dev/null ] && [ \${2} -eq \${2} 2>/dev/null ] && [ ! -z \${2} ]
+then
+	export port_o=\$1
+	export sleep_time=\$2
+	export host_o=127.0.0.1
+	export scan_continue=1
+fi
+
+
 protocol=tcp
 [ -z \${host_o} ] && export host_o="127.0.0.1"
 if [ ! -z \$3 ] && [ \$3 -eq \$3 2>/dev/null ]
@@ -46,7 +59,7 @@ then
 fi
 [ -z \${sleep_time} ] && export sleep_time=0.2
 if ping -c 1 \${host_o} >/dev/null ;then
-        echo -e "\${host_o} \tTCP PORT \tSTATUS"
+        echo -e "\${host_o} \tTCP PORT \tSTATUS \tServices or Program name"
 else
         echo -e "\033[31;40m\${host_o} net unreachable\033[0m"
         exit 1
@@ -56,18 +69,25 @@ then
 	for i in {1..65536}
 	do
         	if echo &>/dev/null > /dev/tcp/\${host_o}/\${i} ;then
-                	echo -e "\${host_o}\t\033[31;40m\${i}\033[0m  is \033[32;40mOPEN\033[0m"
+			service_name=''
+			ifconfig | grep \${host_o} 1>/dev/null &&  service_name=\`netstat -natp | grep :\${i} | grep -v - | tail -1 | awk '{print \$7}' | awk -F / '{print \$2}'\`
+			[ "\${service_name}" == "master"  ] && service_name=\`grep " \${i}/tcp" /etc/services | head -3 | awk '{print \$1}'\`
+			[ "\${service_name}" == "systemd"  ] && service_name=\`grep " \${i}/tcp" /etc/services | head -3 | awk '{print \$1}'\`
+			ifconfig | grep "\${host_o} " 1>/dev/null && [ -z \${service_name:0:1} ] && service_name='maybe ssh sessions'
+			[ -z \${service_name:0:1} ] && service_name=\`grep " \${i}/tcp" /etc/services | head -3 | awk '{print \$1}'\`
+                	echo -e "\${host_o}\t\033[31;40m\${i}\t\033[0m  is \033[32;40mOPEN\033[0m \t\${service_name}"
         	fi
 	done
 else
 if [ \${port_o} -eq \${port_o} 2>/dev/null ] &&  [ \${port_o} -ge 1 2>/dev/null ] &&  [ \${port_o} -le 65536 2>/dev/null ] 
 then
-	if [ ! -z \$3 ]
+	if [ ! -z \$3 ] || [ ! -z \${scan_continue} ]
 	then
 		while [ True ]
 		do
 			if echo &>/dev/null > /dev/tcp/\${host_o}/\${port_o} ;then
-        	        	echo -e "\${host_o}\t\033[31;40m\${port_o}\033[0m \t\t  is \033[32;40mOPEN\033[0m"
+				service_name=\`grep " \${port_o}/tcp" /etc/services | head -3 | awk '{print \$1}'\`
+        	        	echo -e "\${host_o}\t\033[31;40m\${port_o}\033[0m \t\t  is \033[32;40mOPEN\033[0m \t\${service_name}"
 			else
 				echo -e "\${host_o}\t\033[31;40m\${port_o}\033[0m \t\t  is \033[31;40mNOT OPEN\033[0m"
         		fi
@@ -75,7 +95,8 @@ then
 		done
 	else
                 if echo &>/dev/null > /dev/tcp/\${host_o}/\${port_o} ;then
-                        echo -e "\${host_o}\t\033[31;40m\${port_o}\033[0m \t\t  is \033[32;40mOPEN\033[0m"
+			service_name=\`grep " \${port_o}/tcp" /etc/services | head -3 | awk '{print \$1}'\`
+                        echo -e "\${host_o}\t\033[31;40m\${port_o}\033[0m \t\t  is \033[32;40mOPEN\033[0m \t\${service_name}"
 		else
 			echo -e "\${host_o}\t\033[31;40m\${port_o}\033[0m \t\t  is \033[31;40mNOT OPEN\033[0m"
                 fi
@@ -86,7 +107,7 @@ else
 fi
 fi
 	
-dtend=\`date +\%s\`
+dtend=\`date +%s\`
 echo -e "this script cost time: \033[32;40m\`expr \${dtend} - \${dtbegin}\`\033[0m second"
 EOF
 chmod 777 /usr/bin/scanportDDCW
@@ -155,13 +176,21 @@ chmod 777 /usr/bin/CheckCommDDCW
 cat << EF > /usr/bin/sshNopasswd
 #!/bin/env bash
 #write by ddcw at 20200410
+#modified by ddcw at 20200428
 
+export LANG=en_US.UTF-8
 
-dt=\$(date +%Y%m%d-%H%M%S)
+if  ! which expect >/dev/null 2>&1 
+then
+	echo -e " [\033[1;5;41;33mERROR\033[0m \`date +%Y%m%d-%H:%M:%S\`] \033[1;41;33myou should install expect first\033[0m :\n\t\t \033[32;40myum install expect -y\033[0m"
+	exit 1
+fi
+
+dt=\$(date +%Y%m%d-%H%M%SOURCE)
 
 function get_ssh_keygen() {
 	tpe=\$1
-        expect << EOF
+        expect << EOF >/dev/null
         set timeout 30
         spawn  /usr/bin/ssh-keygen -t \${tpe}
         expect {
@@ -172,31 +201,16 @@ function get_ssh_keygen() {
         expect eof
 EOF
 }
-function scp_file_auto(){
-        [ \$# -eq 3 ] || echo_color red "script has internal err DDCW_0001"
-        password=\$3
-        dir_tmp=\$1
-        host_and_dir=\$2
-        expect << EOF
-        set timeout 30
-        spawn scp \${dir_tmp} \${host_and_dir}
-        expect {
-                        "(yes/no" {send "yes\r";exp_continue}
-                        "password:" {send "\${password}\r"}
-        }
-        expect eof
-EOF
-}
 function ssh_command(){
-#        [ \$# -eq 3 ] || echo_color red "script has internal err DDCW_0003"
-        user=`echo \$1 | awk -F "@" '{print \$1}'` ||  echo_color red "script has internal err DDCW_0004"
         user_host=\$1
+	user=\$(echo \${user_host} | awk -F @ '{print \$1}')
+	[ -z \${user} ] && user=\${user_host}
         commd=\$2
         password=\$3
-        expect << EOF
+	expect << EOF >/dev/null
         set timeout 30
-        spawn ssh \${user_host} \${commd}
-        expect {
+        spawn ssh  -p \${sshport} \${user_host} \${commd}
+        expect { 
                         "(yes/no" {send "yes\r";exp_continue}
                         "password:" {send "\${password}\r"}
         }
@@ -207,10 +221,12 @@ EOF
 
 
 function help_this_script() {
-	echo '---------------------------------------'
-	echo 'sshNopasswd [USER]@HOSTNAME [PASSWORD] '
-	echo "example: sshNopasswd \$(whoami)@\$(last | head -1 | awk '{print \$3}') "
-	echo '---------------------------------------'
+	echo '------------------------'
+	echo -e "[\033[1;5;41;33mHELP\033[0m \`date +%Y%m%d-%H:%M:%S\`] \033[1;41;33mexample: sshNopasswd [USERNAME@]hsotname[:SSHPORT] [PASSWORD]\033[0m"
+	#echo "example: sshNopasswd \$(whoami)@\$(last | head -1 | awk '{print \$3}') "
+	echo '------------------------'
+	echo -e "[\033[32;40mINFO\033[0m \`date +%Y%m%d-%H:%M:%S\`] \033[32;40myou can set sshNopassword sshport in ~/.sshNopasswd.conf; formats:HOSTNAME  SSHPORT\033[0m"
+	echo '------------------------'
 	exit 0
 }
 
@@ -218,6 +234,33 @@ case \$1 in
 	-h|-H|h|H|help|HELP|-help|-HELP|--help|--HELP|help=y|HELP=Y|?|-?)
 		help_this_script;;
 esac
+
+if [ -z \$1 ]
+then
+	help_this_script
+	exit 1
+fi
+
+export username=\$(echo \$1 | awk -F \@ '{print \$1}' | awk -F : '{print \$1}')
+export host_d=\$(echo \$1 | awk -F @ '{print \$2}' | awk -F : '{print \$1}')
+echo \$1 | grep : 1>/dev/null && export sshport=\$(echo \$1 | awk -F : '{print \$NF}')
+[ -z \${host_d} ] && export username=\$(whoami) && export host_d=\$(echo \$1 | awk -F : '{print \$1}')
+[ -z \${sshport} ] && [ -f ~/.sshNopasswd.conf ] && export sshport=\$(grep \${host_d} ~/.sshNopasswd.conf 2>/dev/null | tail -1 | awk '{print \$2}')
+[ -z \${sshport} ] && export sshport=22
+
+if ping -c 1 \${host_d} >/dev/null ;then
+	if echo &>/dev/null > /dev/tcp/\${host_d}/\${sshport}
+	then
+		echo -e "[\033[32;40mINFO\033[0m \`date +%Y%m%d-%H:%M:%S\`] \033[32;40mbegin ssh(user port \${sshport}) config for \${1}\033[0m"
+	else
+		echo -e "[\033[1;5;41;33mERROR\033[0m \`date +%Y%m%d-%H:%M:%S\`] \033[1;41;33m \${host_d}:\${sshport} is not ESTABLISHED\033[0m"
+		exit 1
+	fi
+else
+	echo -e "[\033[1;5;41;33mERROR\033[0m \`date +%Y%m%d-%H:%M:%S\`] \033[1;41;33m \${host_d} Network unreachable\033[0m"
+	exit 1
+fi
+
 	
 if [ ! -f ~/.ssh/id_rsa ]
 then
@@ -251,13 +294,13 @@ fi
 ssh_rsa_pub=\$(cat  ~/.ssh/id_rsa.pub | awk '{print \$1 " " \$2}')
 ssh_dsa_pub=\$(cat  ~/.ssh/id_dsa.pub | awk '{print \$1 " " \$2}')
 
-[ -z \${2} ] && read -t 60 -p "please input \${1} password:" password
+[ -z \${2} ] && read -t 60 -p "please input \${username}@\${host_d} password:" password
 [ -z \${2} ] || export password=\$2
 
-ssh_command \$1 'mkdir -p touch ~/.ssh' \${password}
-ssh_command \$1 '\[ -f ~/.ssh/authorized_keys \] || touch ~/.ssh/authorized_keys' \${password}
-ssh_command \$1 " grep '\${ssh_rsa_pub}' ~/.ssh/authorized_keys >/dev/null || echo '\${ssh_rsa_pub}' >> ~/.ssh/authorized_keys" \${password}
-ssh_command \$1 " grep '\${ssh_dsa_pub}' ~/.ssh/authorized_keys >/dev/null || echo '\${ssh_dsa_pub}' >> ~/.ssh/authorized_keys" \${passwd}
+ssh_command  \${username}@\${host_d} 'mkdir -p touch ~/.ssh' \${password}
+ssh_command  \${username}@\${host_d} '\[ -f ~/.ssh/authorized_keys \] || touch ~/.ssh/authorized_keys' \${password}
+ssh_command  \${username}@\${host_d} " grep '\${ssh_rsa_pub}' ~/.ssh/authorized_keys >/dev/null || echo '\${ssh_rsa_pub}' >> ~/.ssh/authorized_keys" \${password}
+ssh_command  \${username}@\${host_d} " grep '\${ssh_dsa_pub}' ~/.ssh/authorized_keys >/dev/null || echo '\${ssh_dsa_pub}' >> ~/.ssh/authorized_keys" \${passwd}
 EF
 
 chmod 777 /usr/bin/sshNopasswd
